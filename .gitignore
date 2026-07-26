@@ -3,3 +3,4 @@ cmake-build-debug/
 *.out
 *.exe
 .DS_Store
+.idea/
