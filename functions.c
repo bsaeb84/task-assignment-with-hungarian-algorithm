@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <limits.h>
 #define NUM_TASKS 20
 #define NUM_RESOURCES 20
 #define MAX_NAME_LENGTH 100
@@ -191,8 +192,11 @@ void find_zeros(Assignment *assignment, int zeros[][20]) {
     }
 }
 
-//building a adjecency graph matrix
+//building a adjecency graph list
 void graph(Assignment *assignment, int zeros[][20], int g[][20]) {
+    //this adjency list is created from the zero values from step_1 and step_2
+    //the rows are to the left and columns are to the right
+    //stores the indices of all resources (columns) that contain a zero in the current cost matrix.
     for (int i=0; i<assignment->n; i++) {
         int j=0;
         for (int l=0; l<assignment->n; l++) {
@@ -207,13 +211,23 @@ void graph(Assignment *assignment, int zeros[][20], int g[][20]) {
 //step 3
 
 int try_kuhn(int p, int visited[], int g[][20], int m[]) {
+    //m contains (number of row number of which the tasks have been assigned a resource) which task contains which column
+    //g is the adjency list we made where the rows (tasks) are to the left and the columns (resources are to the right)
+    //we use g to find which resources a task can be assigned to when building the maximum matching (array m).
+
+    //if we have visited this row, we must leave
     if (visited[p]) {
         return 0;
     }
+    //else mark as visited
     visited[p] = 1;
-    //while we are not at the end, is cell connected to task p, connected to a resource? if not is this resources connected to another task?
+
+    //check if the row with the zero is connected to another column
+    //for every column in row p is free
     for (int i=0; g[p][i] != -1; i++) {
-        int l = g[p][i];
+        int l = g[p][i]; //catch the free column and leave
+
+        //if the column is not free, try to find another place we can find a free column a.k.a is there a way i can move the occupied column so i can free it?
         if (m[l] == -1 || try_kuhn(m[l],visited, g, m)) {
             m[l] = p;
             return 1;
@@ -223,22 +237,27 @@ int try_kuhn(int p, int visited[], int g[][20], int m[]) {
 
 }
 
-void step_3(Assignment* assignment, int g[][20], int m[]) {
+int step_3(Assignment* assignment, int g[][20], int m[]) {
     //these are used to initialise these arrays and calling try_kuhn inside it
     memset(m, 0, 20* sizeof(int));
     int visited[20];
+    int matched = 0;
 
     for (int i=0; i<assignment->n; i++) {
         memset(visited, 0, 20 * sizeof(int));
         try_kuhn(i, visited, g, m);
+        matched++;
     }
+    return matched;
 }
+
+//Find the minimum number of lines needed to cover all zeros in the matrix.
 
 void marking_lines(Assignment *assignment, int g[][20], int m[], int mark_row[], int mark_col[]) {
 
-    //finding unmatched rows
+    //marking all as unmatched rows - they didn't get a zero assigned - which rows are currently not matched?
     for (int p=0; p<assignment->n; p++) {
-        int matched =0;
+        int matched =0; //intially marking all as unmatched
 
         for (int l=0; l < assignment->n; l++) {
             if (m[l] = p) {
@@ -251,7 +270,7 @@ void marking_lines(Assignment *assignment, int g[][20], int m[], int mark_row[],
         }
     }
 
-    //look through entire matrix/graph
+    //look through entire matrix/graph and keep spreading marking there is no new marks appear
     int changed = 1;
     while (changed) {
         changed = 0;
@@ -262,7 +281,7 @@ void marking_lines(Assignment *assignment, int g[][20], int m[], int mark_row[],
             if (!mark_row[i]) {
                 continue;
             }
-            //mark the column
+            //for each marked the column
             for (int j=0; g[i][j] != -1; j++) {
                 int l = g[i][j];
                 if (!mark_col[l]) {
@@ -273,6 +292,8 @@ void marking_lines(Assignment *assignment, int g[][20], int m[], int mark_row[],
         }
 
         //now from the column mark the row it's connected to
+        //if the column has a matched row mark the row
+        //the column we want to occupy, who owns it?
 
         for (int k=0; k<assignment->n; k++) {
             if (!mark_col[k]) {
@@ -290,11 +311,64 @@ void marking_lines(Assignment *assignment, int g[][20], int m[], int mark_row[],
 
 }
 
+//cover ever unmarked row and every marked column
 void covering(int n, int mark_row[], int mark_col[], int covered_row[], int covered_col[]) {
     for (int i=0; i<n; i++) {
         covered_row[i] = !mark_row[i];  //looking if the row is not marked then it is marked by the column thus it is covered
         covered_col[i] = mark_col[i];  //if the column is marked then it is part of columns covered
     }
 
+}
+
+//step 4
+
+void step_4(Assignment* assignment, int mark_row[], int mark_col[]) {
+
+    //find the smallest uncovered value - so we are looking through uncovered rows and columns
+    int min_val = INT_MAX;  //using max value possible for object of int type from limits library - (2^31 - 1)
+    for (int i=0; i<assignment->n; i++) {
+        if (!mark_row[i]) {
+            continue;
+        }
+            for (int j=0; j<assignment->n; j++) {
+                if (mark_col[j]) {
+                    continue;
+                }
+                if (assignment->costs[i][j] < min_val) {
+                    min_val = assignment->costs[i][j];
+                }
+            }
+    }
+
+
+    //now subtract min uncovered value from all uncovered values and add it to the values covered by two intersecting lines
+    //shifting values to get more zero assignment - bringing down the cost itself
+    for (int k=0; k < assignment->n; k++) {
+        for (int l=0; l < assignment->n; l++) {
+            if (!mark_row[k] && !mark_col[l]) {
+                assignment->costs[k][l] -= min_val;  //want to create new zeros
+            }
+            if (mark_row[k] && mark_col[l]) {
+                assignment->costs[k][l] += min_val;  //this cell had the value subtracted twice so we must add to it
+            }
+        }
+    }
+}
+
+
+//step 5
+//note: the m array stores the row number of the tasks that have been assigned a resource
+void step_5(Assignment* assignment, int m[], int original_cost[][20]) {
+    int total_cost = 0;
+
+    for (int i=0; i<assignment->n; i++) {
+        //if the resource i has been assigned a task? -1 means that it has not been assigned a task
+        if (m[i] != -1) {
+            int task = m[i]; //we get the row index of the assigned task
+            printf("%s -> %s cost: %d", assignment->task_names[task], assignment->resources_names[i], original_cost[task][i]);
+            total_cost += original_cost[task][i];
+        }
+    }
+    printf("Total cost: %d", total_cost);
 }
 

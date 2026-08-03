@@ -44,4 +44,20 @@ void find_min_col(Assignment *assignment, int col_index);
 void step_2(Assignment* assignment);
 
 void find_zeros(Assignment *assignment, int zeros[][20]);
+
+void graph(Assignment *assignment, int zeros[][20], int g[][20]);
+
+int try_kuhn(int p, int visited[], int g[][20], int m[]);
+
+int step_3(Assignment* assignment, int g[][20], int m[]);
+
+void marking_lines(Assignment *assignment, int g[][20], int m[], int mark_row[], int mark_col[]);
+
+void covering(int n, int mark_row[], int mark_col[], int covered_row[], int covered_col[]);
+
+void step_4(Assignment* assignment, int mark_row[], int mark_col[]);
+
+void step_5(Assignment* assignment, int m[], int original_cost[][20]);
+
+
 #endif //ALLOCATING_RESOURCES_FUNCTIONS_H
